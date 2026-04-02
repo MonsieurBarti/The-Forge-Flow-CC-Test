@@ -59,8 +59,10 @@ export class GitCliAdapter implements GitOps {
     this.invalidateCache();
     return Ok(undefined);
   }
-  async createWorktree(path: string, branch: string): Promise<Result<void, DomainError>> {
-    const r = await runGit(['worktree', 'add', path, '-b', branch], this.repoRoot);
+  async createWorktree(path: string, branch: string, startPoint?: string): Promise<Result<void, DomainError>> {
+    const args = ['worktree', 'add', path, '-b', branch];
+    if (startPoint) args.push(startPoint);
+    const r = await runGit(args, this.repoRoot);
     if (!r.ok) return r;
     return Ok(undefined);
   }
@@ -206,5 +208,17 @@ export class GitCliAdapter implements GitOps {
     const configR = await runGit(['config', 'init.defaultBranch'], this.repoRoot);
     if (configR.ok && configR.data) return Ok(configR.data);
     return Ok('main');
+  }
+
+  async pushBranch(branch: string, remote = 'origin'): Promise<Result<void, DomainError>> {
+    const r = await runGit(['push', remote, `${branch}:${branch}`], this.repoRoot);
+    if (!r.ok) return r;
+    return Ok(undefined);
+  }
+
+  async fetchBranch(branch: string, remote = 'origin'): Promise<Result<void, DomainError>> {
+    const r = await runGit(['fetch', remote, `${branch}:${branch}`], this.repoRoot);
+    if (!r.ok) return r;
+    return Ok(undefined);
   }
 }

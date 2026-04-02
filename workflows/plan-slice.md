@@ -63,7 +63,7 @@ WRITE `.tff/milestones/<milestone>/slices/<id>/PLAN.md`:
 
 ### 5. Create Tasks + Detect Waves
 CREATE tasks: `tff-tools` ∀ task w/ deps
-DETECT: `tff-tools waves:detect '<tasks-json>'` → show user
+DETECT: `tff-tools waves:detect '[{"id":"T01","dependsOn":[]},{"id":"T02","dependsOn":["T01"]}]'` → show user
 
 ### 6. Architecture Review (F-lite ∧ F-full)
 LOAD @skills/architecture-review/SKILL.md + @skills/writing-plans/SKILL.md → SPAWN subagent: {plan_content, spec_content}
@@ -91,5 +91,5 @@ After completing all steps above:
 2. IF `plan-to-pr`:
    - Non-gate steps: IMMEDIATELY invoke the next workflow — do NOT ask the user
    - Human gates (plan approval, spec approval, completion): pause and ask
-3. IF `guided`: suggest next step with `/tff-test:<command>`, wait for user
+3. IF `guided`: suggest next step with `/tff:<command>`, wait for user
 4. Log: `[tff] <slice-id>: planning → executing`
