@@ -1,0 +1,433 @@
+<p align="center">
+  <img src="assets/forge-banner.png" alt="The Forge Flow" width="800" />
+</p>
+
+<h1 align="center">The Forge Flow</h1>
+
+<p align="center">
+  Autonomous coding agent orchestrator for Claude Code.<br/>
+  SQLite-backed state. Plannotator reviews. Wave-based parallel execution.
+</p>
+
+<p align="center">
+  <a href="#setup-guide">Setup</a> |
+  <a href="#full-workflow-example">Workflow</a> |
+  <a href="#commands">Commands</a> |
+  <a href="#architecture">Architecture</a> |
+  <a href="#agents">Agents</a>
+</p>
+
+---
+
+## What is The Forge Flow?
+
+The Forge Flow (`tff`) is a Claude Code plugin that orchestrates AI agents through a structured software development lifecycle. It coordinates 4 lean agents and 18 skills from project initialization to shipped code.
+
+**Key features:**
+- **SQLite state** — zero-dependency local state management with automatic persistence
+- **Wave-based execution** -- tasks are topologically sorted into waves, independent tasks run in parallel
+- **Fresh reviewer enforcement** -- code reviewers are never the same agent that wrote the code
+- **Plannotator integration** -- all plan reviews, verification, and code reviews go through plannotator's interactive UI
+- **Complexity tiers** -- S (quick fix), F-lite (feature), F-full (complex) determine which phases are required
+- **Checkpoint/resumability** -- pause and resume execution across sessions
+- **Skill library** -- 18 reusable methodology skills that agents load for consistent practices
+- **Autonomous flow** -- `plan-to-pr` mode auto-runs from plan approval through PR creation, with escalation on failure
+- **Auto-learn pipeline** -- observes tool-use patterns, ranks candidates, drafts skills with bounded guardrails
+- **Lean agents** -- 4 identity-only agents for fresh-reviewer enforcement; all methodology lives in skills
+
+---
+
+## Setup Guide
+
+The Forge Flow requires **Node.js 20+** and **Git**. Optionally install **plannotator** for interactive review UI.
+
+### Step 1: Install plannotator
+
+Plannotator is a Claude Code plugin that provides an interactive browser UI for reviewing plans and code.
+
+```bash
+# Add the plannotator marketplace
+claude /plugin marketplace add backnotprop/plannotator
+
+# Install the plugin
+claude /plugin install plannotator@plannotator
+```
+
+Verify: Run `/plannotator-review` in Claude Code -- it should open a browser window.
+
+### Step 2: Install The Forge Flow
+
+```bash
+# Add the marketplace
+claude /plugin marketplace add MonsieurBarti/The-Forge-Flow-CC-Test
+
+# Install the plugin
+claude /plugin install tff-test@the-forge-flow-test
+```
+
+Verify: Run `/tff-test:help` in Claude Code to see the command reference.
+
+### Verification
+
+Run `/tff-test:health` to check state consistency and plannotator availability.
+
+---
+
+## Full Workflow Example
+
+Here's a complete walkthrough from empty project to shipped milestone: building an authentication system.
+
+### 1. Initialize the project
+
+```
+/tff-test:new
+```
+
+Claude asks for your project name and vision. You provide:
+- **Name:** my-saas-app
+- **Vision:** A multi-tenant SaaS platform with team management
+
+This creates `.tff/PROJECT.md` and asks you to define requirements.
+
+**Next step suggested:** `/tff-test:new-milestone`
+
+### 2. Create a milestone
+
+```
+/tff-test:new-milestone
+```
+
+- **Name:** MVP
+- **Goal:** Basic auth + team CRUD
+
+This creates the `milestone/M01` branch and prompts you to break the milestone into slices.
+
+You define 3 slices:
+1. **Auth flow** -- signup, login, JWT tokens
+2. **Team CRUD** -- create/read/update/delete teams
+3. **Permissions** -- role-based access control
+
+**Next step suggested:** `/tff-test:discuss`
+
+### 3. Discuss the first slice
+
+```
+/tff-test:discuss
+```
+
+The **brainstormer** agent (opus) challenges your assumptions:
+- "What OAuth providers do you need? Just email/password?"
+- "How do JWT tokens refresh? What's the expiry strategy?"
+- "Is email verification required for MVP?"
+
+The **product-lead** agent validates requirements and defines acceptance criteria.
+
+Complexity is auto-classified as **F-lite** (5 tasks, 2 modules, no external integrations).
+
+**Next step suggested:** `/tff-test:research M01-S01`
+
+### 4. Research (optional for F-lite)
+
+```
+/tff-test:research M01-S01
+```
+
+The agent investigates the technical approach: reads the existing codebase, checks what auth libraries are available, documents findings in `.tff/milestones/M01/slices/M01-S01/RESEARCH.md`.
+
+**Next step suggested:** `/tff-test:plan M01-S01`
+
+### 5. Plan the slice
+
+```
+/tff-test:plan M01-S01
+```
+
+The agent creates a task decomposition with dependencies:
+- T01: User entity + migration (no deps)
+- T02: Password hashing service (no deps)
+- T03: Signup endpoint (depends on T01, T02)
+- T04: Login endpoint (depends on T01, T02)
+- T05: JWT middleware (depends on T04)
+
+Waves detected:
+- Wave 0: [T01, T02] -- parallel
+- Wave 1: [T03, T04] -- parallel
+- Wave 2: [T05] -- sequential
+
+**Plannotator opens** in your browser. You annotate the plan, suggest changes, approve.
+
+A worktree is created at `.tff/worktrees/M01-S01/` on branch `slice/M01-S01`.
+
+**Next step suggested:** `/tff-test:execute M01-S01`
+
+### 6. Execute with wave parallelism
+
+```
+/tff-test:execute M01-S01
+```
+
+For each wave:
+
+**Wave 0:** The **tester** agent writes failing specs for T01 and T02. Then **backend-dev** agents are spawned in parallel -- one for T01 (user entity), one for T02 (password hashing). Each implements until tests pass, then commits atomically.
+
+**Wave 1:** Same pattern for T03 and T04. Tests written first, then implementation.
+
+**Wave 2:** T05 (JWT middleware) -- sequential, single agent.
+
+Checkpoints are saved after each wave. If the session crashes, `/tff-test:resume` picks up where it left off.
+
+**Next step suggested:** `/tff-test:verify M01-S01`
+
+### 7. Verify acceptance criteria
+
+```
+/tff-test:verify M01-S01
+```
+
+The **product-lead** agent checks each acceptance criterion against the implementation. Results are written to `VERIFICATION.md`.
+
+**Plannotator opens** for you to review the findings. You mark any issues.
+
+If all pass: **Next step suggested:** `/tff-test:ship M01-S01`
+If failures: suggests `/tff-test:execute M01-S01` to fix and re-run.
+
+### 8. Ship the slice (two-stage review)
+
+```
+/tff-test:ship M01-S01
+```
+
+**Stage 1 -- Spec compliance:** The **spec-reviewer** agent (fresh, never wrote this code) verifies every acceptance criterion is met in the actual code.
+
+**Stage 2 -- Code quality:** The **code-reviewer** agent checks quality, patterns, tests, YAGNI. Only runs after spec passes.
+
+**Security audit:** The **security-auditor** agent checks for OWASP top 10 issues.
+
+**Plannotator opens** for your final code review.
+
+If approved: slice PR is created (`slice/M01-S01` -> `milestone/M01`), merged, worktree cleaned up.
+
+**Next step suggested:** `/tff-test:discuss` (for the next slice) or `/tff-test:progress`
+
+### 9. Repeat for remaining slices
+
+Run the same cycle for M01-S02 (Team CRUD) and M01-S03 (Permissions).
+
+### 10. Complete the milestone
+
+```
+/tff-test:audit-milestone
+```
+
+Checks all slices are closed, requirements are covered. Then:
+
+```
+/tff-test:complete-milestone
+```
+
+Creates the milestone PR (`milestone/M01` -> `main`), runs a final security audit, opens plannotator for review. After approval, merges to main.
+
+**Next step suggested:** `/tff-test:new-milestone` for the next milestone.
+
+### Quick fixes and debugging
+
+Found a bug while working on a later slice? Two options:
+
+**If you know the fix:**
+```
+/tff-test:quick "Fix null pointer in user validation"
+```
+Skips brainstorming and research, goes straight to plan -> execute -> ship.
+
+**If you need to investigate:**
+```
+/tff-test:debug "Users getting 500 on login after password reset"
+```
+Systematically diagnoses the issue first (no slice created), then fixes via S-tier slice once root cause is confirmed.
+
+---
+
+## Commands
+
+### Project Lifecycle
+
+| Command | Description |
+|---|---|
+| `/tff-test:new` | Initialize a new tff project |
+| `/tff-test:new-milestone` | Start a new milestone |
+| `/tff-test:progress` | Show status dashboard |
+| `/tff-test:status` | Lightweight status with next step |
+
+### Slice Lifecycle
+
+| Command | Description |
+|---|---|
+| `/tff-test:discuss` | Brainstorm and scope a slice |
+| `/tff-test:research [slice-id]` | Research phase |
+| `/tff-test:plan [slice-id]` | Plan and create tasks |
+| `/tff-test:execute [slice-id]` | Execute with wave parallelism |
+| `/tff-test:verify [slice-id]` | Verify acceptance criteria |
+| `/tff-test:ship [slice-id]` | PR review and merge slice |
+| `/tff-test:quick <description>` | Fast-track S-tier changes |
+| `/tff-test:debug <error or symptom>` | Diagnose and fix a bug systematically |
+
+### Milestone Lifecycle
+
+| Command | Description |
+|---|---|
+| `/tff-test:audit-milestone` | Audit against original intent |
+| `/tff-test:complete-milestone` | PR review and merge to main |
+
+### Management
+
+| Command | Description |
+|---|---|
+| `/tff-test:add-slice` | Add slice to milestone |
+| `/tff-test:insert-slice` | Insert between slices |
+| `/tff-test:remove-slice` | Remove future slice |
+| `/tff-test:rollback [slice-id]` | Revert slice commits |
+| `/tff-test:pause` | Save checkpoint |
+| `/tff-test:resume` | Restore from checkpoint |
+| `/tff-test:sync` | Regenerate STATE.md |
+| `/tff-test:health` | Diagnose state consistency |
+| `/tff-test:settings` | View and modify all project settings |
+| `/tff-test:map-codebase` | Analyze codebase and generate docs |
+| `/tff-test:help` | Show command reference |
+
+### Skill Auto-Learn
+
+| Command | Description |
+|---|---|
+| `/tff-test:detect-patterns` | Run pattern detection pipeline |
+| `/tff-test:suggest-skills` | Show ranked skill candidates |
+| `/tff-test:create-skill` | Draft skill from pattern or description |
+| `/tff-test:learn` | Detect skill divergences and propose refinements |
+| `/tff-test:compose` | Detect and bundle skill clusters |
+
+## Architecture
+
+```
+the-forge-flow/
+  .claude-plugin/         # CC marketplace manifest
+  commands/tff/           # 30 slash commands (.md)
+  agents/                 # 4 lean identity-only agents (.md)
+  skills/                 # 18 reusable methodology skills (folder convention)
+  workflows/              # 23 orchestration workflows (.md)
+  references/             # 8 reference documents (.md)
+  hooks/                  # PostToolUse observation hook (.sh)
+  tools/
+    src/
+      domain/             # Hexagonal domain layer (Zod, Result<T,E>)
+      application/        # Use cases (orchestrate domain via ports)
+      infrastructure/     # Adapters (SQLite, git CLI, filesystem)
+      cli/                # tff-tools.cjs entry point
+    dist/tff-tools.cjs    # Compiled single-file CLI bundle
+```
+
+### Hexagonal Rules
+
+- **Domain** imports only Zod + `node:crypto`. No infrastructure.
+- **Zod as single source of truth** -- `z.infer<typeof Schema>` everywhere, no TS `enum`.
+- **Result\<T, E\>** for all fallible operations. Never throw.
+- **Ports** define interfaces in domain. Adapters implement in infrastructure.
+- **Tests** colocated as `.spec.ts`. Unit tests use in-memory adapters.
+
+## Agents
+
+After v0.7.0's skills architecture reform, methodology moved from agents to skills. Only 4 identity-only agents remain -- they exist for fresh-reviewer enforcement (ensuring the reviewer is never the same agent that wrote the code).
+
+| Agent | Role | Profile |
+|---|---|---|
+| code-reviewer | Code quality review (fresh reviewer) | quality (opus) |
+| spec-reviewer | Spec compliance verification | quality (opus) |
+| security-auditor | Security review on every PR | quality (opus) |
+| fixer | Apply accepted review findings | budget (sonnet) |
+
+## Skills
+
+Skills are reusable knowledge fragments loaded via `@skills/<name>/SKILL.md`. They teach HOW to do something -- agents define WHO does it. After v0.7.0, all methodology lives in skills (decoupled from TFF-specific terminology).
+
+| Skill | Purpose |
+|---|---|
+| hexagonal-architecture | DDD + CQRS + hexagonal boundary patterns |
+| test-driven-development | TDD methodology with HARD-GATE enforcement |
+| code-review-protocol | Two-stage review (spec compliance + code quality) |
+| commit-conventions | Conventional commit format and rules |
+| plannotator-usage | Interactive plan/review UI integration |
+| brainstorming | Structured discovery and design exploration |
+| systematic-debugging | 4-phase investigation (Track A/B diagnosis) |
+| writing-plans | Break specs into bite-sized tasks (2-5 min each) |
+| executing-plans | Wave-based execution with fresh subagent per task |
+| finishing-work | Pre-PR checklist, structured merge/PR decision |
+| stress-testing-specs | Devil's advocate for assumptions and scope |
+| architecture-review | C4 model, dependency inversion review |
+| acceptance-criteria-validation | Binary verdict per criterion, evidence-based |
+| codebase-documentation | Divio framework documentation generation |
+| skill-authoring | Evidence-driven pattern analysis for new skills |
+| agent-authoring | Standardized agent template (identity-only) |
+| receiving-code-review | Technical rigor when processing review feedback |
+| verification-before-completion | Evidence before claims, always |
+
+## Work Hierarchy
+
+```
+Project (one per repo)
+  Milestone (M01, M02, ...)
+    Slice (M01-S01, M01-S02, ...)
+      Task (T01, T02, ...)
+```
+
+### Git Branch Model
+
+```
+main
+  milestone/M01
+    slice/M01-S01  (worktree)
+    slice/M01-S02  (worktree)
+```
+
+### Complexity Tiers
+
+| Tier | Brainstormer | Research | TDD | Fresh Reviewer |
+|---|---|---|---|---|
+| S (quick fix) | Skip | Skip | Skip | Always |
+| F-lite (feature) | Yes | Optional | Yes | Always |
+| F-full (complex) | Yes | Required | Yes | Always |
+
+## Configuration
+
+Project settings live in `.tff/settings.yaml`. Generated automatically by `/tff-test:new` with inline comments. Manage interactively with `/tff-test:settings`.
+
+```yaml
+model-profiles:
+  quality:
+    model: opus       # brainstormer, architect, code-reviewer, security-auditor
+  balanced:
+    model: sonnet     # product-lead, tester
+  budget:
+    model: sonnet     # frontend-dev, backend-dev, devops, fixer, doc-writer
+
+autonomy:
+  mode: guided        # "guided" (pause at every step) | "plan-to-pr" (auto-transition)
+
+auto-learn:
+  weights:
+    frequency: 0.25
+    breadth: 0.30
+    recency: 0.25
+    consistency: 0.20
+  guardrails:
+    min-corrections: 3
+    cooldown-days: 7
+    max-drift-pct: 20
+  clustering:
+    min-sessions: 3
+    min-patterns: 2
+
+```
+
+Settings are resilient: corrupted or partial files fall back to defaults per field. Run `/tff-test:settings` to detect and add missing fields.
+
+## License
+
+MIT

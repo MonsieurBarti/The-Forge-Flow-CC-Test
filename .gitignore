@@ -1,0 +1,9 @@
+node_modules/
+*.tsbuildinfo
+.tff/
+.claude/
+docs/
+*.db
+.beads/
+.worktrees/
+/branch-meta.json

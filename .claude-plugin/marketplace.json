@@ -1,0 +1,11 @@
+{
+  "name": "the-forge-flow-test",
+  "owner": { "name": "MonsieurBarti" },
+  "plugins": [
+    {
+      "name": "tff-test",
+      "source": "./plugin",
+      "description": "Test build — autonomous coding agent orchestrator with SQLite-backed state, plannotator integration, and wave-based parallel execution"
+    }
+  ]
+}
